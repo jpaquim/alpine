@@ -16,6 +16,7 @@ let Alpine = {
     get release() { return release },
     get effect() { return effect },
     get raw() { return raw },
+    // @ts-ignore
     version: ALPINE_VERSION,
     disableEffectScheduling,
     setReactivityEngine,

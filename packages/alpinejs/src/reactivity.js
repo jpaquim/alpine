@@ -1,9 +1,29 @@
-
 import { scheduler } from './scheduler'
 
-let reactive, effect, release, raw
+/**
+ * @typedef {import('@vue/reactivity')} Reactivity
+ * @typedef {Reactivity['reactive']} EngineReactive
+ * @typedef {Reactivity['effect']} EngineEffect
+ * @typedef {Reactivity['stop']} EngineRelease
+ * @typedef {Reactivity['toRaw']} EngineRaw
+ *
+ * @typedef {object} Engine
+ * @prop {EngineReactive} reactive
+ * @prop {EngineEffect} effect
+ * @prop {EngineRelease} release
+ * @prop {EngineRaw} raw
+ */
+
+let /** @type {EngineReactive | undefined} */ reactive
+let /** @type {EngineEffect | undefined} */ effect
+let /** @type {EngineRelease | undefined} */ release
+let /** @type {EngineRaw | undefined} */ raw
 
 let shouldSchedule = true
+/**
+ *
+ * @param {() => void} callback
+ */
 export function disableEffectScheduling(callback) {
     shouldSchedule = false
 
@@ -12,32 +32,56 @@ export function disableEffectScheduling(callback) {
     shouldSchedule = true
 }
 
+/**
+ *
+ * @param {Engine} engine
+ */
 export function setReactivityEngine(engine) {
     reactive = engine.reactive
     release = engine.release
-    effect = (callback) => engine.effect(callback, { scheduler: task => {
-        if (shouldSchedule) {
-            scheduler(task)
-        } else {
-            task()
-        }
-    } })
+    effect = callback =>
+        engine.effect(callback, {
+            scheduler: task => {
+                if (shouldSchedule) {
+                    scheduler(task)
+                } else {
+                    task()
+                }
+            },
+        })
     raw = engine.raw
 }
 
-export function overrideEffect(override) { effect = override }
+/**
+ *
+ * @param {EngineEffect} override
+ */
+export function overrideEffect(override) {
+    effect = override
+}
 
+/**
+ *
+ * @param {Element & {
+ *   _x_effects: Set<() => void>,
+ *   _x_runEffects: () => void,
+ * }} el
+ * @returns {[(callback: () => void) => void, () => void]}
+ */
 export function elementBoundEffect(el) {
     let cleanup = () => {}
 
-    let wrappedEffect = (callback) => {
-        let effectReference = effect(callback)
+    let wrappedEffect = (/** @type {() => void} */ callback) => {
+        // TODO: is this assertion always valid?
+        let effectReference = /** @type {EngineEffect} */ (effect)(callback)
 
-        if (! el._x_effects) {
-            el._x_effects = new Set
+        if (!el._x_effects) {
+            el._x_effects = new Set()
 
             // Livewire depends on el._x_runEffects.
-            el._x_runEffects = () => { el._x_effects.forEach(i => i()) }
+            el._x_runEffects = () => {
+                el._x_effects.forEach(i => i())
+            }
         }
 
         el._x_effects.add(effectReference)
@@ -47,16 +91,16 @@ export function elementBoundEffect(el) {
 
             el._x_effects.delete(effectReference)
 
-            release(effectReference)
+            release?.(effectReference)
         }
     }
 
-    return [wrappedEffect, () => { cleanup() }]
+    return [
+        wrappedEffect,
+        () => {
+            cleanup()
+        },
+    ]
 }
 
-export {
-    release,
-    reactive,
-    effect,
-    raw,
-}
+export { release, reactive, effect, raw }
